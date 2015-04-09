@@ -1616,6 +1616,16 @@
 			<locationURI>PARENT-3-PROJECT_LOC/moses/LM/ChartState.h</locationURI>
 		</link>
 		<link>
+			<name>LM/Cloud.cpp</name>
+			<type>1</type>
+			<locationURI>PARENT-2-WORKSPACE_LOC/moses/LM/Cloud.cpp</locationURI>
+		</link>
+		<link>
+			<name>LM/Cloud.h</name>
+			<type>1</type>
+			<locationURI>PARENT-2-WORKSPACE_LOC/moses/LM/Cloud.h</locationURI>
+		</link>
+		<link>
 			<name>LM/DALMWrapper.cpp</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/moses/LM/DALMWrapper.cpp</locationURI>

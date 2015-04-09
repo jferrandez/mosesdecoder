@@ -210,6 +210,10 @@ project : default-build
 lib iconv ;
 requirements += <os>MACOSX:<library>iconv ;
 
+# Added for CloudLM
+#external-lib boost_regex ;
+#requeriments += <library>boost_regex ;
+
 project : requirements 
   <threading>multi:<define>WITH_THREADS
   <threading>multi:<library>boost_thread

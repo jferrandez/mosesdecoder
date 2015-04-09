@@ -17,11 +17,15 @@
 #include <boost/foreach.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string/replace.hpp>
+//#include <boost/regex.hpp>
 
 using boost::asio::ip::tcp;
 
 namespace cloudlm {
 namespace ngram {
+
+// Regex with special characters from Solr
+//boost::regex solr_special_characters("([\\+-&#|!\(\)\{\}\[\]\^\"~*?:])");
 
 // To show a histogram with the frequency of requests to Solr
 typedef boost::unordered_map< std::string, int > HistogramWord;
@@ -84,6 +88,8 @@ std::string UriEncode(const std::string & sSrc)
 {
 	// + - && || ! ( ) { } [ ] ^ " ~ * ? : \ SPECIAL CHARACTERS
 	// TODO do that with boost regular expression
+	// We need to escape Solr special characters
+	//std::string sResult = boost::regex_replace(sSrc, solr_special_characters, "\g1");
 	std::string sResult = boost::replace_all_copy(sSrc, "\\", "\\\\");
 	boost::replace_all(sResult, "+", "\\+");
 	boost::replace_all(sResult, "-", "\\-");
@@ -214,17 +220,17 @@ bool SendRequest(Data &req, ProbBackoff &gram) {
 		body_stream << body_response;
 	}
 
-	if (!ReadJson(body_stream, gram)) return false;
+	/*if (!ReadJson(body_stream, gram)) return false;
 	// TODO: Quitar cuando se arregle en Solr
 	if (gram.backoff == ngram::kExtensionBackoff) gram.backoff = ngram::kNoExtensionBackoff;
-	AddToCache(req.gram, gram);
-	/* TODO: we put the not found words / phrases in the cache --- WE CAN'T PUT for the moment -> GetCache returns true when "not found" word / phrase is found in the cache.
+	AddToCache(req.gram, gram);*/
+	// TODO: we put the not found words / phrases in the cache --- WE CAN'T PUT for the moment -> GetCache returns true when "not found" word / phrase is found in the cache.
 	bool gram_found = ReadJson(body_stream, gram);
 	// TODO: Quitar cuando se arregle en Solr
-	if (gram.backoff == ngram::kExtensionBackoff) gram.backoff = ngram::kNoExtensionBackoff;
+	if (!gram_found && gram.backoff == ngram::kExtensionBackoff) gram.backoff = ngram::kNoExtensionBackoff;
 	AddToCache(req.gram, gram);
 	if (!gram_found) return false;
-	*/
+
 
 	// Write whatever content we already have to output.
 	//if (response.size() > 0)
@@ -361,7 +367,11 @@ bool ReadJson(std::stringstream &json, ProbBackoff &gram) {
 
 		int numFound = pt.get<int>("response.numFound", 0);
 
-		if (numFound == 0) return false;
+		if (numFound == 0){
+			gram.prob = 0;
+			gram.backoff = ngram::kNoExtensionBackoff;
+			return false;
+		}
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("response.docs."))
 		{
 			assert(v.first.empty()); // array elements have no names
@@ -453,8 +463,7 @@ bool GetFromCache(const std::string key, ProbBackoff &gram) {
 		return false;
 	}
 	else {
-		ProbBackoff not_found_gram;
-		if (not_found_gram.prob == found->second->second.prob && not_found_gram.backoff == found->second->second.backoff) {
+		if (found->second->second.prob == 0 && found->second->second.backoff == ngram::kNoExtensionBackoff) {
 			return false;
 		}
 		//std::cout << "GOOD JOB: " << key << " - " << found->second->second.prob;
