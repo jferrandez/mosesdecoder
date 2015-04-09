@@ -222,7 +222,7 @@ project : requirements
 
 
 #Add directories here if you want their incidental targets too (i.e. tests).
-build-projects lm util phrase-extract phrase-extract/syntax-common search moses moses/LM mert moses-cmd scripts regression-testing ;
+build-projects lm cloud-lm util phrase-extract phrase-extract/syntax-common search moses moses/LM mert moses-cmd scripts regression-testing ;
 # contrib/mira
 
 if [ option.get "with-mm" : : "yes" ]
@@ -263,6 +263,7 @@ else
 
 alias programs : 
 lm//programs 
+cloud-lm//programs
 moses-cmd//programs 
 OnDiskPt//CreateOnDiskPt 
 OnDiskPt//queryOnDiskPt 
@@ -288,7 +289,7 @@ contrib/c++tokenizer//tokenizer
 
 
 install-bin-libs programs ;
-install-headers headers-base : [ path.glob-tree biconcor contrib lm mert misc moses-cmd OnDiskPt phrase-extract symal util : *.hh *.h ] : . ;
+install-headers headers-base : [ path.glob-tree biconcor contrib lm cloud-lm mert misc moses-cmd OnDiskPt phrase-extract symal util : *.hh *.h ] : . ;
 install-headers headers-moses : moses//headers-to-install : moses ;
 
 alias install : prefix-bin prefix-lib headers-base headers-moses ;
