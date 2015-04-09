@@ -52,7 +52,7 @@ current ?= "" ;
 path-constant LM-LOG : bin/lm.log ;
 update-if-changed $(LM-LOG) $(current) ;
 
-obj FF_Factory.o : FF/Factory.cpp LM//macros headers ../lm//kenlm mmlib : <dependency>$(LM-LOG) ;
+obj FF_Factory.o : FF/Factory.cpp LM//macros headers ../lm//kenlm ../cloud-lm//cloudlm mmlib : <dependency>$(LM-LOG) ;
 
 # check if we have xmlrpc-c's abyss server available
 # if yes, include server capabilities in the moses executable

@@ -91,6 +91,7 @@
 #endif
 
 #include "moses/LM/Ken.h"
+#include "moses/LM/Cloud.h"
 #ifdef LM_IRST
 #include "moses/LM/IRST.h"
 #endif
@@ -178,6 +179,14 @@ class KenFactory : public FeatureFactory
 public:
   void Create(const std::string &line) {
     DefaultSetup(ConstructKenLM(line));
+  }
+};
+
+class CloudFactory : public FeatureFactory
+{
+public:
+  void Create(const std::string &line) {
+    DefaultSetup(ConstructCloudLM(line));
   }
 };
 
@@ -310,6 +319,7 @@ FeatureRegistry::FeatureRegistry()
 #endif
 
   Add("KENLM", new KenFactory());
+  Add("CLOUDLM", new CloudFactory());
 }
 
 FeatureRegistry::~FeatureRegistry()
