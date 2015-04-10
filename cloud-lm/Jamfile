@@ -22,7 +22,7 @@ if $(with-nplm) {
   wrappers += nplm ;
 }
 
-#fakelib cloudlm : $(wrappers) [ glob *.cc : *main.cc *test.cc ] ../util//kenutil ..//boost_regex : <include>.. $(max-order) : : <include>.. $(max-order) ;
+#fakelib cloudlm : $(wrappers) [ glob *.cc : *main.cc ] ../util//kenutil ..//boost_regex : <include>.. $(max-order) : : <include>.. $(max-order) ;
 fakelib cloudlm : $(wrappers) [ glob *.cc : *main.cc *test.cc ] ../util//kenutil : <include>.. $(max-order) : : <include>.. $(max-order) ;
 
 #import testing ;

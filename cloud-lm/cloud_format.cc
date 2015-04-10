@@ -87,11 +87,13 @@ void ShowStats() {
 std::string UriEncode(const std::string & sSrc)
 {
 	// + - && || ! ( ) { } [ ] ^ " ~ * ? : \ SPECIAL CHARACTERS
-	// TODO do that with boost regular expression
+	// TODO do that with boost regular expression (something is wrong in Moses when compiling with boost_regex
 	// We need to escape Solr special characters
 	//std::string sResult = boost::regex_replace(sSrc, solr_special_characters, "\g1");
 	std::string sResult = boost::replace_all_copy(sSrc, "\\", "\\\\");
-	boost::replace_all(sResult, "+", "\\+");
+	boost::replace_all(sResult, "\"", "\\\"");
+
+	/*boost::replace_all(sResult, "+", "\\+");
 	boost::replace_all(sResult, "-", "\\-");
 	boost::replace_all(sResult, "&", "\\&");
 	boost::replace_all(sResult, "#", "\\#");
@@ -104,16 +106,16 @@ std::string UriEncode(const std::string & sSrc)
 	boost::replace_all(sResult, "[", "\\[");
 	boost::replace_all(sResult, "]", "\\]");
 	boost::replace_all(sResult, "^", "\\^");
-	boost::replace_all(sResult, "\"", "\\\"");
 	boost::replace_all(sResult, "~", "\\~");
 	boost::replace_all(sResult, "*", "\\*");
 	boost::replace_all(sResult, "?", "\\?");
-	boost::replace_all(sResult, ":", "\\:");
+	boost::replace_all(sResult, ":", "\\:");*/
 
 	std::stringstream escaped;
 	escaped.fill('0');
 	escaped << std::hex;
 
+	// We need to encode the search in the URL
 	for (std::string::const_iterator i = sResult.begin(), n = sResult.end(); i != n; ++i) {
 		std::string::value_type c = (*i);
 
