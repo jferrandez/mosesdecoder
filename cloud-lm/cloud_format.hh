@@ -27,17 +27,23 @@ void UpdateRequestStats(const std::string gram, const int order);
 
 void ShowStats();
 
+std::string EncodeSolrSpecialCharacters(const std::string & sSrc);
+
 std::string UriEncode(const std::string & sSrc);
+
+void SendRequestSolr(std::string search, std::stringstream &response);
 
 bool SendRequest(Data &req, ProbBackoff &gram);
 
-bool SendRequest(Data &req, std::vector<std::string> words);
+void SendRequest(Data &req, std::vector<std::string> words);
 
 bool ReadJson(std::stringstream &json, ProbBackoff &gram);
 
 bool ReadJson(std::stringstream &json);
 
 void AddToCache(const std::string key, const ProbBackoff value);
+
+bool ExistInCache(const std::string key);
 
 bool GetFromCache(const std::string key, ProbBackoff &gram);
 

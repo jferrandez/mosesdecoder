@@ -20,4 +20,7 @@ VocabLoadException::~VocabLoadException() throw() {}
 SpecialWordMissingException::SpecialWordMissingException() throw() {}
 SpecialWordMissingException::~SpecialWordMissingException() throw() {}
 
+SolrException::SolrException() throw() {}
+SolrException::~SolrException() throw() {}
+
 } // namespace cloudlm

@@ -97,7 +97,6 @@ template <class Value> class CloudSearch {
     MiddlePointer Unpack(std::string s_ngram, uint64_t extend_pointer, unsigned char extend_length, Node &node) const {
       node = extend_pointer;
       // TODO: check if the unigram "word" always exists.
-      Config *config = Config::Instance();
       Data request;
 	  request.gram = s_ngram;
 	  request.order = extend_length;
@@ -132,7 +131,6 @@ template <class Value> class CloudSearch {
       node = CombineWordHash(node, word);
 
       // TODO: check if the unigram "word" always exists.
-      Config *config = Config::Instance();
       Data request;
   	  request.gram = s_ngram;
 	  request.order = order;

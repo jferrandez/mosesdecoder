@@ -45,6 +45,12 @@ class SpecialWordMissingException : public VocabLoadException {
     ~SpecialWordMissingException() throw();
 };
 
+class SolrException : public util::Exception {
+  public:
+	SolrException() throw();
+    ~SolrException() throw();
+};
+
 } // namespace cloudlm
 
 #endif // CLOUDLM_LM_EXCEPTION_H
