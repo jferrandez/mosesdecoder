@@ -21,8 +21,6 @@ struct Data {
 	int order;
 };
 
-bool ValidateUrl(const char *url, Request &request);
-
 void UpdateRequestStats(const std::string gram, const int order);
 
 void ShowStats();
@@ -35,7 +33,7 @@ void SendRequestSolr(std::string search, std::stringstream &response);
 
 bool SendRequest(Data &req, ProbBackoff &gram);
 
-void SendRequest(Data &req, std::vector<std::string> words);
+void SendRequest(std::vector<std::string> words);
 
 bool ReadJson(std::stringstream &json, ProbBackoff &gram);
 

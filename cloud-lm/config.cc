@@ -29,6 +29,7 @@ Config::Config() :
   //pointer_bhiksha_bits(22),
   //load_method(util::POPULATE_OR_READ),
   max_order(0),
+  cache(0),
   verbose_level(0)
   {}
 

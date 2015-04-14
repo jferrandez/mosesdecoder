@@ -49,7 +49,7 @@ LanguageModel *ConstructCloudLM(const std::string &line);
 template <class Model> class LanguageModelCloud : public LanguageModel
 {
 public:
-  LanguageModelCloud(const std::string &line, const std::string &file, FactorType factorType, size_t order);
+  LanguageModelCloud(const std::string &line, const std::string &file, size_t cache, FactorType factorType, size_t order);
 
   virtual const FFState *EmptyHypothesisState(const InputType &/*input*/) const;
 

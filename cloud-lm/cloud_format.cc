@@ -56,14 +56,6 @@ uint64_t mMaxEntries = 100000000;
 uint64_t mEntries = 0;
 ///////// END CACHE //////////
 
-bool ValidateUrl(const char *url, Request &request) {
-	// TODO use regex instead strncmp and get port and baseurl
-	//string str_url = url;
-	//static const boost::regex re("^(.*:)//([a-z.-]+)(:[0-9]+)/solr$"); //toy regular expression, enough for our purposes currently
-	//return boost::regex_match(str_url, re);
-	return strncmp(url, "http://", 7) == 0;
-}
-
 void UpdateRequestStats(const string gram, const int order) {
     hist_word[gram] = hist_word[gram] + 1;
     hist_order[order] = hist_order[order] + 1;
@@ -72,7 +64,6 @@ void UpdateRequestStats(const string gram, const int order) {
 void ShowStats() {
 	cerr << "START STATS" << endl;
 	cerr << "--NGRAMS--" << endl;
-
 
 	BOOST_FOREACH(HistogramWord::value_type i, hist_word) {
 	    cerr << i.first << "\t" << i.second << endl;
@@ -115,7 +106,6 @@ string EncodeSolrSpecialCharacters(const string & sSrc) {
 
 string UriEncode(const string & sSrc)
 {
-
 	stringstream escaped;
 	escaped.fill('0');
 	escaped << hex;
@@ -196,16 +186,16 @@ string UriEncode(const string & sSrc)
 	getline(response_stream, status_message);
 	if (!response_stream || http_version.substr(0, 5) != "HTTP/")
 	{
-		// TODO: change the failed requests
+	  // TODO: change the failed requests
 	  //throw boost::system::system_error(boost::asio::error::no_data);
-	  cerr << "Invalid response\n" << search << endl;
+	  cerr << "Invalid response for the search: " << search << endl;
 	  return;
 	}
 	if (status_code != 200)
 	{
-		// TODO: change the failed requests
+	  // TODO: change the failed requests
 	  //throw boost::system::system_error(boost::asio::error::connection_aborted);
-	  cerr << "Response returned with status code " << status_code << "\n" << search << endl;
+	  cerr << "Response returned with status code " << status_code << " when searched: " << search << endl;
 	  return;
 	}
 
@@ -223,7 +213,7 @@ string UriEncode(const string & sSrc)
   }
   catch (exception& e)
   {
-	UTIL_THROW(SolrException, "Solr request - something is wrong:\n" << e.what());
+	UTIL_THROW(SolrException, "Solr request - we can't connect with Solr. Reason:\n" << e.what());
 	return;
   }
 }
@@ -234,11 +224,6 @@ bool SendRequest(Data &req, ProbBackoff &gram) {
 	stringstream query;
 	query << "q=gram:\"" << UriEncode(EncodeSolrSpecialCharacters(req.gram)) << "\"&fq=order:" << req.order;
 
-	/*if (!ReadJson(body_stream, gram)) return false;
-	// TODO: Quitar cuando se arregle en Solr
-	if (gram.backoff == ngram::kExtensionBackoff) gram.backoff = ngram::kNoExtensionBackoff;
-	AddToCache(req.gram, gram);*/
-	// TODO: we put the not found words / phrases in the cache --- WE CAN'T PUT for the moment -> GetCache returns true when "not found" word / phrase is found in the cache.
 	stringstream response;
 	SendRequestSolr(query.str(), response);
 	bool gram_found = ReadJson(response, gram);
@@ -250,9 +235,11 @@ bool SendRequest(Data &req, ProbBackoff &gram) {
 	return true;
 }
 
-void SendRequest(Data &req, vector<string> words) {
+void SendRequest(vector<string> words) {
+	// TODO: we put the not found words / phrases in the cache --- WE CAN'T PUT for the moment
+	cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
 	int expected_results = 0;
-	for (int n = 1; n <= req.order; n++) { // for each n-gram order
+	for (int n = 1; n <= config->max_order; n++) { // for each n-gram order
 		string search_per_order = "";
 		signed int limit = words.size() - n + 1;
 		// get all the possible n-grams for this order
@@ -261,8 +248,8 @@ void SendRequest(Data &req, vector<string> words) {
 			for (int j = i; j < i + n; j++) {
 				search_per_gram += (j > i ? " " : "") + words[j];
 			}
-			if (search_per_gram != "" && !ExistInCache(search_per_order)){
-				search_per_order += "gram:\"" + search_per_gram + "\" ";
+			if (search_per_gram != "" && !ExistInCache(search_per_gram)){
+				search_per_order += "gram:\"" + EncodeSolrSpecialCharacters(search_per_gram) + "\" ";
 				expected_results++;
 			}
 		}
@@ -294,12 +281,12 @@ bool SendRequest2(Data &req, vector<string> words) {
 				search_per_gram += (j > i ? " " : "") + words[j];
 			}
 			if (search_per_gram != "" && !ExistInCache(search_per_order)){
-				search_per_order += "gram:\"" + search_per_gram + "\" ";
+				search_per_order += "gram:\"" + EncodeSolrSpecialCharacters(search_per_gram) + "\" ";
 				expected_results++;
 			}
 		}
 		if (search_per_order != "") {
-			search << "q=" << search_per_order << "&fq=order:" << n << "";
+			search << "q=" << UriEncode(search_per_order) << "&fq=order:" << n << "";
 		}
 	}
 	string s_search = search.str();
@@ -355,40 +342,41 @@ bool ReadJson(stringstream &json, ProbBackoff &gram) {
 }
 
 bool ReadJson(stringstream &json) {
+	boost::property_tree::ptree pt;
+	boost::property_tree::read_json(json, pt);
+
+	int numFound = pt.get<int>("response.numFound", 0);
+
+	if (numFound == 0) return false;
+	BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("response.docs."))
 	{
-		boost::property_tree::ptree pt;
-		boost::property_tree::read_json(json, pt);
+		//assert(v.first.empty()); // array elements have no names
+		ProbBackoff gram;
+		string s_gram;
+		s_gram = v.second.get<string>("gram");
+		gram.prob = v.second.get<float>("prob");
+		gram.backoff = v.second.get<float>("backoff", ngram::kNoExtensionBackoff);
+		AddToCache(s_gram, gram);
 
-		int numFound = pt.get<int>("response.numFound", 0);
-
-		if (numFound == 0) return false;
-		BOOST_FOREACH(boost::property_tree::ptree::value_type &v, pt.get_child("response.docs."))
+		/* PRINT for debug
+		 void print(boost::property_tree::ptree const& pt)
 		{
-			assert(v.first.empty()); // array elements have no names
-			ProbBackoff gram;
-			string s_gram;
-			s_gram = v.second.get<string>("gram");
-			gram.prob = v.second.get<float>("prob");
-			gram.backoff = v.second.get<float>("backoff", ngram::kNoExtensionBackoff);
-			AddToCache(s_gram, gram);
-
-			/* PRINT for debug
-			 void print(boost::property_tree::ptree const& pt)
-			{
-				using boost::property_tree::ptree;
-				ptree::const_iterator end = pt.end();
-				for (ptree::const_iterator it = pt.begin(); it != end; ++it) {
-					cout << it->first << ": " << it->second.get_value<string>() << endl;
-					print(it->second);
-				}
+			using boost::property_tree::ptree;
+			ptree::const_iterator end = pt.end();
+			for (ptree::const_iterator it = pt.begin(); it != end; ++it) {
+				cout << it->first << ": " << it->second.get_value<string>() << endl;
+				print(it->second);
 			}
-			 */
 		}
+		 */
 	}
 	return true;
 }
 
 void AddToCache(string key, const ProbBackoff value) {
+    cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
+	if (config->cache == 0) return;
+
 	// push it to the front;
 	mCacheList.push_front( make_pair( key, value ) );
 
@@ -401,6 +389,8 @@ void AddToCache(string key, const ProbBackoff value) {
 	// check if it's time to remove the last element
 	if ( mEntries > mMaxEntries )
 	{
+		cerr << "CLOUDLM WARN: The limit of the cache (" << mMaxEntries << ") is reached. Current size: " << mEntries << endl;
+
 	    // erase from the map the last cache list element
 	    mCacheMap.erase( mCacheList.back().first );
 
@@ -416,11 +406,19 @@ void AddToCache(string key, const ProbBackoff value) {
 
 bool ExistInCache(const string key) {
 	CacheMap::const_iterator found = mCacheMap.find(key);
-	if (found == mCacheMap.end()) return false;
-	else return true;
+	if (found == mCacheMap.end()) {
+		//cout << "NOEXIST: " << key << endl;
+		return false;
+	}
+	else {
+		//cout << "EXIST: " << key << endl;
+		return true;
+	}
 }
 
 bool GetFromCache(const string key, ProbBackoff &gram) {
+    cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
+	if (config->cache != 0) return false;
 	CacheMap::const_iterator found = mCacheMap.find(key);
 	if (found == mCacheMap.end()) {
 		return false;

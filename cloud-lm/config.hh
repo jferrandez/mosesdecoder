@@ -113,6 +113,7 @@ public:
 
   Request request;
   unsigned char max_order;
+  unsigned char cache;
 
   int verbose_level;
 

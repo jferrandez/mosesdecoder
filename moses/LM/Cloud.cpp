@@ -65,7 +65,7 @@ struct CloudLMState : public FFState {
 
 } // namespace
 
-template <class Model> LanguageModelCloud<Model>::LanguageModelCloud(const std::string &line, const std::string &url, FactorType factorType, size_t order)
+template <class Model> LanguageModelCloud<Model>::LanguageModelCloud(const std::string &line, const std::string &url, size_t cache, FactorType factorType, size_t order)
   :LanguageModel(line)
   ,m_factorType(factorType)
 {
@@ -84,6 +84,14 @@ template <class Model> LanguageModelCloud<Model>::LanguageModelCloud(const std::
 	config->request.port = strs[1];
   }
 
+  // 0 -> no cache; 1 -> individual requests to cache; 2 -> multiple query in request;
+  if (cache < 0 || cache > 2) {
+	  cache = 0;
+  }
+
+  VERBOSE(2, "CLOUDLM INFO The level of the cache is: " << cache);
+
+  config->cache = cache;
   config->max_order = order;
   config->request.url = url;
   config->verbose_level = StaticData::Instance().GetVerboseLevel();
@@ -92,7 +100,6 @@ template <class Model> LanguageModelCloud<Model>::LanguageModelCloud(const std::
   m_beginSentenceFactor = collection.AddFactor(BOS_);
   const Factor *endFactor = collection.AddFactor(EOS_);
   const Factor *unkFactor = collection.AddFactor("<unk>");
-  // TODO aqui hay que pasar la id del Factor al modelo para que la guarde, y la de </s>? <unk> es 0 (Puede ser que no exista en collection y que 0 en collection sea otra cosa.
   m_ngram.reset(new Model(m_beginSentenceFactor->GetId(), endFactor->GetId(), unkFactor->GetId()));
 }
 
@@ -135,24 +142,26 @@ template <class Model> void LanguageModelCloud<Model>::CalcScore(const Phrase &p
   size_t end_loop = std::min(ngramBoundary, phrase.GetSize());
 
   //std::cout << "Phrase: " << phrase.ToString() << std::endl;
+  cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
   cloudlm::WordIndexToString words;
-  //std::vector<std::string> words_cache;
-  for (size_t i = 0; i < phrase.GetSize(); ++i) {
-	const Word &word = phrase.GetWord(i);
-	std::string w = word[m_factorType]->GetString().as_string();
-	words[word[m_factorType]->GetId()] = w;
-	//words_cache.push_back(w);
+  if (config->cache == 2) {
+	  std::vector<std::string> words_cache;
+	  for (size_t i = 0; i < phrase.GetSize(); ++i) {
+		const Word &word = phrase.GetWord(i);
+		std::string w = word[m_factorType]->GetString().as_string();
+		words[word[m_factorType]->GetId()] = w;
+		words_cache.push_back(w);
+	  }
+	  // CALL THE CACHE IN ONE REQUEST
+	  cloudlm::ngram::SendRequest(words_cache);
   }
-  /*cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
-  cloudlm::ngram::Request request;
-  request.gram = phrase.ToString();
-  request.order = config->max_order;
-  request.base_url = "localhost";
-  request.port = "20000";
-  request.url = config->request.url;
-  cloudlm::ngram::SendRequest(request, words_cache);
-*/
-  // TODO : pasar phrase a Solr para rellenar cache aqui
+  else {
+	  for (size_t i = 0; i < phrase.GetSize(); ++i) {
+		const Word &word = phrase.GetWord(i);
+		words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
+	  }
+  }
+
   for (; position < end_loop; ++position) {
     const Word &word = phrase.GetWord(position);
     if (word.IsNonTerminal()) {
@@ -171,7 +180,6 @@ template <class Model> void LanguageModelCloud<Model>::CalcScore(const Phrase &p
       fullScore += scorer.Finish();
       scorer.Reset();
     } else {
-      // TODO : PROBLEM? maybe you need to know when the word is unknown for us...
 	  cloudlm::WordIndex index = word[m_factorType]->GetId();
       scorer.Terminal(index, words);
       if (!index) ++oovCount;
@@ -204,10 +212,24 @@ template <class Model> FFState *LanguageModelCloud<Model>::EvaluateWhenApplied(c
   typename Model::State *state0 = &ret->state, *state1 = &aux_state;
 
   //std::cout << "Hypo: " << hypo.ToString() << std::endl;
+  cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
   cloudlm::WordIndexToString words;
-  for (size_t i = 0; i < end; ++i) {
-	const Word &word = hypo.GetWord(i);
-	words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
+  if (config->cache == 2) {
+	  std::vector<std::string> words_cache;
+	  for (size_t i = 0; i < end; ++i) {
+		const Word &word = hypo.GetWord(i);
+		std::string w = word[m_factorType]->GetString().as_string();
+		words[word[m_factorType]->GetId()] = w;
+		words_cache.push_back(w);
+	  }
+	  // CALL THE CACHE IN ONE REQUEST
+	  cloudlm::ngram::SendRequest(words_cache);
+  }
+  else {
+	  for (size_t i = 0; i < end; ++i) {
+		const Word &word = hypo.GetWord(i);
+		words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
+	  }
   }
 
   float score = m_ngram->Score(in_state, hypo.GetWord(position)[m_factorType]->GetId(), *state0, words);
@@ -295,12 +317,30 @@ template <class Model> FFState *LanguageModelCloud<Model>::EvaluateWhenApplied(c
     }
   }
 
-  // TODO creo un hashmap con Factor id to Factor string and I can recover the string inside the functions.
+  cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
   cloudlm::WordIndexToString words;
+  if (config->cache == 2) {
+	  std::vector<std::string> words_cache;
+	  for (size_t i = 0; i < size; ++i) {
+		const Word &word = hypo.GetCurrTargetPhrase().GetWord(i);
+		std::string w = word[m_factorType]->GetString().as_string();
+		words[word[m_factorType]->GetId()] = w;
+		words_cache.push_back(w);
+	  }
+	  // CALL THE CACHE IN ONE REQUEST
+	  cloudlm::ngram::SendRequest(words_cache);
+  }
+  else {
+	for (size_t i = 0; i < size; ++i) {
+		const Word &word = hypo.GetCurrTargetPhrase().GetWord(i);
+		words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
+	}
+  }
+  /*cloudlm::WordIndexToString words;
   for (size_t i = 0; i < size; ++i) {
 	const Word &word = hypo.GetCurrTargetPhrase().GetWord(i);
 	words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
-  }
+  }*/
 
   for (; phrasePos < size; phrasePos++) {
     const Word &word = hypo.GetCurrTargetPhrase().GetWord(phrasePos);
@@ -355,12 +395,30 @@ template <class Model> FFState *LanguageModelCloud<Model>::EvaluateWhenApplied(c
     }
   }
 
-  // TODO creo un hashmap con Factor id to Factor string and I can recover the string inside the functions.
+  cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
   cloudlm::WordIndexToString words;
+  if (config->cache == 2) {
+	  std::vector<std::string> words_cache;
+	  for (size_t i = 0; i < size; ++i) {
+		const Word &word = target.GetWord(i);
+		std::string w = word[m_factorType]->GetString().as_string();
+		words[word[m_factorType]->GetId()] = w;
+		words_cache.push_back(w);
+	  }
+	  // CALL THE CACHE IN ONE REQUEST
+	  cloudlm::ngram::SendRequest(words_cache);
+  }
+  else {
+	for (size_t i = 0; i < size; ++i) {
+		const Word &word = target.GetWord(i);
+		words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
+	}
+  }
+  /*cloudlm::WordIndexToString words;
   for (size_t i = 0; i < size; ++i) {
 	const Word &word = target.GetWord(i);
 	words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
-  }
+  }*/
 
   for (; phrasePos < size; phrasePos++) {
     const Word &word = target.GetWord(phrasePos);
@@ -396,7 +454,6 @@ template <class Model> void LanguageModelCloud<Model>::ReportHistoryOrder(std::o
   typename Model::State *state0 = &start_of_sentence_state;
   typename Model::State *state1 = &aux_state;
 
-  // TODO creo un hashmap con Factor id to Factor string and I can recover the string inside the functions.
   cloudlm::WordIndexToString words;
   for (size_t i = 0; i < phrase.GetSize(); ++i) {
 	const Word &word = phrase.GetWord(i);
@@ -427,6 +484,7 @@ LanguageModel *ConstructCloudLM(const std::string &line)
   FactorType factorType = 0;
   string url;
   size_t nGramOrder = 0;
+  size_t cache = 0;
 
   vector<string> toks = Tokenize(line);
   for (size_t i = 1; i < toks.size(); ++i) {
@@ -440,41 +498,15 @@ LanguageModel *ConstructCloudLM(const std::string &line)
       nGramOrder = Scan<size_t>(args[1]);
     } else if (args[0] == "url") {
       url = args[1];
+    } else if (args[0] == "cache") {
+      cache = Scan<size_t>(args[1]);
     } /*else if (args[0] == "name") {
       // that's ok. do nothing, passes onto LM constructor
     }*/
   }
 
-  return new LanguageModelCloud<cloudlm::ngram::CloudModel>(line, url, factorType, nGramOrder);
-
-  //return ConstructCloudLM(line, filePath, factorType, lazy);
+  return new LanguageModelCloud<cloudlm::ngram::CloudModel>(line, url, cache, factorType, nGramOrder);
 }
-
-/*LanguageModel *ConstructCloudLM(const std::string &line, const std::string &file, FactorType factorType, bool lazy)
-{
-    cloudlm::ngram::ModelType model_type;
-    if (cloudlm::ngram::RecognizeBinary(file.c_str(), model_type)) {
-
-      switch(model_type) {
-      case cloudlm::ngram::PROBING:
-        return new LanguageModelCloud<cloudlm::ngram::ProbingModel>(line, file, factorType, lazy);
-      case cloudlm::ngram::REST_PROBING:
-        return new LanguageModelCloud<cloudlm::ngram::RestProbingModel>(line, file, factorType, lazy);
-      case cloudlm::ngram::TRIE:
-        return new LanguageModelCloud<cloudlm::ngram::TrieModel>(line, file, factorType, lazy);
-      case cloudlm::ngram::QUANT_TRIE:
-        return new LanguageModelCloud<cloudlm::ngram::QuantTrieModel>(line, file, factorType, lazy);
-      case cloudlm::ngram::ARRAY_TRIE:
-        return new LanguageModelCloud<cloudlm::ngram::ArrayTrieModel>(line, file, factorType, lazy);
-      case cloudlm::ngram::QUANT_ARRAY_TRIE:
-        return new LanguageModelCloud<cloudlm::ngram::QuantArrayTrieModel>(line, file, factorType, lazy);
-      default:
-    	UTIL_THROW2("Unrecognized CloudLM model type " << model_type);
-      }
-    } else {
-      return new LanguageModelCloud<cloudlm::ngram::ProbingModel>(line, file, factorType, lazy);
-    }
-}*/
 
 }
 
