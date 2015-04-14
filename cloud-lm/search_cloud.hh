@@ -67,6 +67,7 @@ template <class Value> class CloudSearch {
       /*IFVERBOSE(4) {
         cloudlm::ngram::UpdateRequestStats("unigram", 1);
       }*/
+      cloudlm::ngram::UpdateRequestStats(1);
 
       // TODO leer de config
       Config *config = Config::Instance();
@@ -121,6 +122,7 @@ template <class Value> class CloudSearch {
       //std::stringstream sstm;
       //sstm << (order_minus_2+2) << "-gram";
       //cloudlm::ngram::UpdateRequestStats(sstm.str(), (order_minus_2+2));
+      cloudlm::ngram::UpdateRequestStats(order);
 
       /*if (word == vocabulary->NotFound()) {
           cloudlm::ngram::UpdateRequestStats("no encontrado2", -2);
@@ -178,6 +180,8 @@ template <class Value> class CloudSearch {
 		Data request;
 		request.gram = s_ngram;
 		request.order = config->max_order;
+
+	    cloudlm::ngram::UpdateRequestStats(config->max_order);
 
 		typename Value::Weights ngram_weights;
 		if (!SendRequest(request, ngram_weights)) {

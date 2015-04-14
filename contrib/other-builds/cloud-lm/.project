@@ -151,6 +151,16 @@
 			<locationURI>PARENT-2-WORKSPACE_LOC/cloud-lm/test_nounk.arpa</locationURI>
 		</link>
 		<link>
+			<name>timer.cc</name>
+			<type>1</type>
+			<locationURI>PARENT-2-WORKSPACE_LOC/cloud-lm/timer.cc</locationURI>
+		</link>
+		<link>
+			<name>timer.hh</name>
+			<type>1</type>
+			<locationURI>PARENT-2-WORKSPACE_LOC/cloud-lm/timer.hh</locationURI>
+		</link>
+		<link>
 			<name>util.hh</name>
 			<type>1</type>
 			<locationURI>PARENT-2-WORKSPACE_LOC/cloud-lm/util.hh</locationURI>

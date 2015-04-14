@@ -89,7 +89,7 @@ template <class Model> LanguageModelCloud<Model>::LanguageModelCloud(const std::
 	  cache = 0;
   }
 
-  VERBOSE(2, "CLOUDLM INFO The level of the cache is: " << cache);
+  VERBOSE(1, "CLOUDLM INFO The level of the cache is: " << cache << endl);
 
   config->cache = cache;
   config->max_order = order;
@@ -145,6 +145,7 @@ template <class Model> void LanguageModelCloud<Model>::CalcScore(const Phrase &p
   cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
   cloudlm::WordIndexToString words;
   if (config->cache == 2) {
+	  cloudlm::ngram::doSplitPhrasesTimer(0);
 	  std::vector<std::string> words_cache;
 	  for (size_t i = 0; i < phrase.GetSize(); ++i) {
 		const Word &word = phrase.GetWord(i);
@@ -152,14 +153,17 @@ template <class Model> void LanguageModelCloud<Model>::CalcScore(const Phrase &p
 		words[word[m_factorType]->GetId()] = w;
 		words_cache.push_back(w);
 	  }
+	  cloudlm::ngram::doSplitPhrasesTimer(1);
 	  // CALL THE CACHE IN ONE REQUEST
 	  cloudlm::ngram::SendRequest(words_cache);
   }
   else {
+	  cloudlm::ngram::doSplitPhrasesTimer(0);
 	  for (size_t i = 0; i < phrase.GetSize(); ++i) {
 		const Word &word = phrase.GetWord(i);
 		words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
 	  }
+	  cloudlm::ngram::doSplitPhrasesTimer(1);
   }
 
   for (; position < end_loop; ++position) {
@@ -215,6 +219,7 @@ template <class Model> FFState *LanguageModelCloud<Model>::EvaluateWhenApplied(c
   cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
   cloudlm::WordIndexToString words;
   if (config->cache == 2) {
+	  cloudlm::ngram::doSplitPhrasesTimer(0);
 	  std::vector<std::string> words_cache;
 	  for (size_t i = 0; i < end; ++i) {
 		const Word &word = hypo.GetWord(i);
@@ -222,14 +227,17 @@ template <class Model> FFState *LanguageModelCloud<Model>::EvaluateWhenApplied(c
 		words[word[m_factorType]->GetId()] = w;
 		words_cache.push_back(w);
 	  }
+	  cloudlm::ngram::doSplitPhrasesTimer(1);
 	  // CALL THE CACHE IN ONE REQUEST
 	  cloudlm::ngram::SendRequest(words_cache);
   }
   else {
+	  cloudlm::ngram::doSplitPhrasesTimer(0);
 	  for (size_t i = 0; i < end; ++i) {
 		const Word &word = hypo.GetWord(i);
 		words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
 	  }
+	  cloudlm::ngram::doSplitPhrasesTimer(1);
   }
 
   float score = m_ngram->Score(in_state, hypo.GetWord(position)[m_factorType]->GetId(), *state0, words);
@@ -320,6 +328,7 @@ template <class Model> FFState *LanguageModelCloud<Model>::EvaluateWhenApplied(c
   cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
   cloudlm::WordIndexToString words;
   if (config->cache == 2) {
+	  cloudlm::ngram::doSplitPhrasesTimer(0);
 	  std::vector<std::string> words_cache;
 	  for (size_t i = 0; i < size; ++i) {
 		const Word &word = hypo.GetCurrTargetPhrase().GetWord(i);
@@ -327,14 +336,17 @@ template <class Model> FFState *LanguageModelCloud<Model>::EvaluateWhenApplied(c
 		words[word[m_factorType]->GetId()] = w;
 		words_cache.push_back(w);
 	  }
+	  cloudlm::ngram::doSplitPhrasesTimer(1);
 	  // CALL THE CACHE IN ONE REQUEST
 	  cloudlm::ngram::SendRequest(words_cache);
   }
   else {
+	cloudlm::ngram::doSplitPhrasesTimer(0);
 	for (size_t i = 0; i < size; ++i) {
 		const Word &word = hypo.GetCurrTargetPhrase().GetWord(i);
 		words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
 	}
+	cloudlm::ngram::doSplitPhrasesTimer(1);
   }
   /*cloudlm::WordIndexToString words;
   for (size_t i = 0; i < size; ++i) {
@@ -398,6 +410,7 @@ template <class Model> FFState *LanguageModelCloud<Model>::EvaluateWhenApplied(c
   cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
   cloudlm::WordIndexToString words;
   if (config->cache == 2) {
+	  cloudlm::ngram::doSplitPhrasesTimer(0);
 	  std::vector<std::string> words_cache;
 	  for (size_t i = 0; i < size; ++i) {
 		const Word &word = target.GetWord(i);
@@ -405,14 +418,17 @@ template <class Model> FFState *LanguageModelCloud<Model>::EvaluateWhenApplied(c
 		words[word[m_factorType]->GetId()] = w;
 		words_cache.push_back(w);
 	  }
+	  cloudlm::ngram::doSplitPhrasesTimer(1);
 	  // CALL THE CACHE IN ONE REQUEST
 	  cloudlm::ngram::SendRequest(words_cache);
   }
   else {
+	cloudlm::ngram::doSplitPhrasesTimer(0);
 	for (size_t i = 0; i < size; ++i) {
 		const Word &word = target.GetWord(i);
 		words[word[m_factorType]->GetId()] = word[m_factorType]->GetString().as_string();
 	}
+	cloudlm::ngram::doSplitPhrasesTimer(1);
   }
   /*cloudlm::WordIndexToString words;
   for (size_t i = 0; i < size; ++i) {

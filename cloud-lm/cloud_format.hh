@@ -21,6 +21,10 @@ struct Data {
 	int order;
 };
 
+void doSplitPhrasesTimer(int action);
+
+void UpdateRequestStats(const int order);
+
 void UpdateRequestStats(const std::string gram, const int order);
 
 void ShowStats();

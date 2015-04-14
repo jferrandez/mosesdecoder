@@ -4,6 +4,8 @@
 #include "cloud-lm/blank.hh"
 #include "cloud-lm/lm_exception.hh"
 
+#include "cloud-lm/timer.hh"
+
 #include <iostream>
 #include <istream>
 #include <ostream>
@@ -24,6 +26,19 @@ using namespace std;
 
 namespace cloudlm {
 namespace ngram {
+
+Timer cacheTime;
+Timer networkTime;
+Timer prepareRequestsTime;
+Timer splitPhrasesTimer;
+double solrTime = 0; // In ms
+int solrRequests = 0;
+int cacheRequests = 0;
+int cacheAdd = 0;
+int cacheExist = 0;
+int cacheGet = 0;
+int cacheFound = 0;
+int cacheNotFound = 0;
 
 // Regex with special characters from Solr
 //boost::regex solr_special_characters("([\\+-&#|!\(\)\{\}\[\]\^\"~*?:])");
@@ -52,9 +67,26 @@ CacheMap mCacheMap;
 
 /// Max entries in Cache
 uint64_t mMaxEntries = 100000000;
+
 /// Current entries
 uint64_t mEntries = 0;
 ///////// END CACHE //////////
+
+/**
+ * Action = 0 -> start / Action = 1 -> stop
+ */
+void doSplitPhrasesTimer(int action) {
+	if (action == 0) {
+		splitPhrasesTimer.start();
+	}
+	else if (action == 1) {
+		splitPhrasesTimer.stop();
+	}
+}
+
+void UpdateRequestStats(const int order) {
+    hist_order[order] = hist_order[order] + 1;
+}
 
 void UpdateRequestStats(const string gram, const int order) {
     hist_word[gram] = hist_word[gram] + 1;
@@ -62,18 +94,34 @@ void UpdateRequestStats(const string gram, const int order) {
 }
 
 void ShowStats() {
-	cerr << "START STATS" << endl;
-	cerr << "--NGRAMS--" << endl;
+    cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
+	cerr << endl << endl << "START STATS" << endl;
+	/*cerr << "--NGRAMS--" << endl;
 
 	BOOST_FOREACH(HistogramWord::value_type i, hist_word) {
 	    cerr << i.first << "\t" << i.second << endl;
-	}
+	}*/
 
 	cerr << endl << endl << "--ORDER--" << endl;
 	BOOST_FOREACH(HistogramOrder::value_type i, hist_order) {
 	    cerr << i.first << "\t" << i.second << endl;
 	}
-	cerr << "FINISH STATS" << endl;
+
+	cerr << endl << endl << "--TIME--" << endl;
+	cerr << "cacheTime" << "\t" << cacheTime.get_elapsed_time() << endl;
+	cerr << "networkTime" << "\t" << networkTime.get_elapsed_time() << endl;
+	cerr << "prepareRequestsTime" << "\t" << prepareRequestsTime.get_elapsed_time() << endl;
+	cerr << "splitPhrasesTimer" << "\t" << splitPhrasesTimer.get_elapsed_time() << endl;
+	cerr << "solrTime" << "\t" << solrTime << endl;
+	cerr << "solrRequests" << "\t" << solrRequests << endl;
+	cerr << "cacheRequests" << "\t" << cacheRequests << endl;
+	cerr << "cacheAdd" << "\t" << cacheAdd << endl;
+	cerr << "cacheExist" << "\t" << cacheExist << endl;
+	cerr << "cacheGet" << "\t" << cacheGet << endl;
+	cerr << "cacheFound" << "\t" << cacheFound << endl;
+	cerr << "cacheNotFound" << "\t" << cacheNotFound << endl;
+
+	cerr << endl << endl << "FINISH STATS" << endl;
 }
 
 string EncodeSolrSpecialCharacters(const string & sSrc) {
@@ -128,11 +176,16 @@ string UriEncode(const string & sSrc)
 }
 
  void SendRequestSolr(string search, stringstream &solr_response) {
+  prepareRequestsTime.start();
+  solrRequests++;
+
   try
   {
     cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
 
 	boost::asio::io_service io_service;
+
+	networkTime.start();
 
 	// Get a list of endpoints corresponding to the server name.
 	tcp::resolver resolver(io_service);
@@ -148,8 +201,10 @@ string UriEncode(const string & sSrc)
 	  socket.close();
 	  socket.connect(*endpoint_iterator++, error);
 	}
-	if (error)
+	if (error) {
+	  networkTime.stop();
 	  throw boost::system::system_error(error);
+	}
 
 	// Form the request. We specify the "Connection: close" header so that the
 	// server will close the socket after transmitting the response. This will
@@ -173,8 +228,12 @@ string UriEncode(const string & sSrc)
 	while (boost::asio::read(socket, response,
 		  boost::asio::transfer_at_least(1), error)) {}
 	  //cout << &response;
-	if (error != boost::asio::error::eof)
+	if (error != boost::asio::error::eof) {
+	  networkTime.stop();
 	  throw boost::system::system_error(error);
+	}
+
+	networkTime.stop();
 
 	// Check that response is OK.
 	istream response_stream(&response);
@@ -189,6 +248,7 @@ string UriEncode(const string & sSrc)
 	  // TODO: change the failed requests
 	  //throw boost::system::system_error(boost::asio::error::no_data);
 	  cerr << "Invalid response for the search: " << search << endl;
+	  prepareRequestsTime.stop();
 	  return;
 	}
 	if (status_code != 200)
@@ -196,6 +256,7 @@ string UriEncode(const string & sSrc)
 	  // TODO: change the failed requests
 	  //throw boost::system::system_error(boost::asio::error::connection_aborted);
 	  cerr << "Response returned with status code " << status_code << " when searched: " << search << endl;
+	  prepareRequestsTime.stop();
 	  return;
 	}
 
@@ -214,8 +275,10 @@ string UriEncode(const string & sSrc)
   catch (exception& e)
   {
 	UTIL_THROW(SolrException, "Solr request - we can't connect with Solr. Reason:\n" << e.what());
+	prepareRequestsTime.stop();
 	return;
   }
+  prepareRequestsTime.stop();
 }
 
 bool SendRequest(Data &req, ProbBackoff &gram) {
@@ -240,6 +303,7 @@ void SendRequest(vector<string> words) {
 	cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
 	int expected_results = 0;
 	for (int n = 1; n <= config->max_order; n++) { // for each n-gram order
+		splitPhrasesTimer.start();
 		string search_per_order = "";
 		signed int limit = words.size() - n + 1;
 		// get all the possible n-grams for this order
@@ -253,6 +317,7 @@ void SendRequest(vector<string> words) {
 				expected_results++;
 			}
 		}
+		splitPhrasesTimer.stop();
 		if (search_per_order != "") {
 			stringstream search;
 			search << "q=" << UriEncode(search_per_order) << "&fq=order:" << n << "&rows:" << expected_results;
@@ -307,6 +372,8 @@ bool ReadJson(stringstream &json, ProbBackoff &gram) {
 		boost::property_tree::ptree pt;
 		boost::property_tree::read_json(json, pt);
 
+		solrTime += pt.get<double>("responseHeader.QTime", 0);
+
 		int numFound = pt.get<int>("response.numFound", 0);
 
 		if (numFound == 0){
@@ -345,6 +412,8 @@ bool ReadJson(stringstream &json) {
 	boost::property_tree::ptree pt;
 	boost::property_tree::read_json(json, pt);
 
+	solrTime += pt.get<double>("responseHeader.QTime", 0);
+
 	int numFound = pt.get<int>("response.numFound", 0);
 
 	if (numFound == 0) return false;
@@ -374,8 +443,13 @@ bool ReadJson(stringstream &json) {
 }
 
 void AddToCache(string key, const ProbBackoff value) {
+
     cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
 	if (config->cache == 0) return;
+
+	cacheTime.start();
+	cacheRequests++;
+	cacheAdd++;
 
 	// push it to the front;
 	mCacheList.push_front( make_pair( key, value ) );
@@ -400,31 +474,47 @@ void AddToCache(string key, const ProbBackoff value) {
 	    // decrease count
 	    mEntries--;
 	}
+
+	cacheTime.stop();
 }
 
 
 
 bool ExistInCache(const string key) {
+	cacheTime.start();
+	cacheRequests++;
+	cacheExist++;
+
 	CacheMap::const_iterator found = mCacheMap.find(key);
 	if (found == mCacheMap.end()) {
-		//cout << "NOEXIST: " << key << endl;
+		cacheTime.stop();
 		return false;
 	}
 	else {
-		//cout << "EXIST: " << key << endl;
+		cacheTime.stop();
 		return true;
 	}
+
 }
 
 bool GetFromCache(const string key, ProbBackoff &gram) {
     cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
-	if (config->cache != 0) return false;
+	if (config->cache == 0) return false;
+
+	cacheTime.start();
+	cacheRequests++;
+	cacheGet++;
+
 	CacheMap::const_iterator found = mCacheMap.find(key);
 	if (found == mCacheMap.end()) {
+		cacheNotFound++;
+		cacheTime.stop();
 		return false;
 	}
 	else {
 		if (found->second->second.prob == 0 && found->second->second.backoff == ngram::kNoExtensionBackoff) {
+			cacheNotFound++;
+			cacheTime.stop();
 			return false;
 		}
 		//cout << "GOOD JOB: " << key << " - " << found->second->second.prob;
@@ -432,6 +522,8 @@ bool GetFromCache(const string key, ProbBackoff &gram) {
 		gram.prob = found->second->second.prob;
 		gram.backoff = found->second->second.backoff;
 	}
+	cacheFound++;
+	cacheTime.stop();
 	return true;
 }
 

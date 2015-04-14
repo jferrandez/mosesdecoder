@@ -28,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <vector>
 
 #include "util/usage.hh"
+#include "cloud-lm/cloud_format.hh"
 
 #ifdef WIN32
 // Include Visual Leak Detector
@@ -269,7 +270,9 @@ batch_run()
   FeatureFunction::Destroy();
 
   IFVERBOSE(1) util::PrintUsage(std::cerr);
+  cloudlm::ngram::ShowStats();
   
+
 #ifndef EXIT_RETURN
   //This avoids that destructors are called (it can take a long time)
   exit(EXIT_SUCCESS);
