@@ -6,6 +6,9 @@
 
 #include <string>
 #include <vector>
+#include <boost/asio.hpp>
+
+using boost::asio::ip::tcp;
 
 namespace cloudlm {
 namespace ngram {
@@ -19,6 +22,26 @@ struct Request {
 struct Data {
 	std::string gram;
 	int order;
+};
+
+class ClientSocket {
+public:
+	ClientSocket();
+	void OpenConnection(std::string ip, std::string port);
+	void HandlerConnect(const boost::system::error_code &error, boost::asio::ip::tcp::resolver::iterator endpoint_iterator);
+	void HandleWriteRequest(const boost::system::error_code& err);
+	void HandleReadStatusLine(const boost::system::error_code& err);
+	void HandleReadHeaders(const boost::system::error_code& err);
+	void HandleReadContent(const boost::system::error_code& err);
+	void SendRequest(std::string message, std::string url, std::stringstream &solr_response);
+
+	/// SOCKET ///
+	boost::asio::io_service io_service_;
+	tcp::socket socket_;
+	tcp::resolver::iterator iterator_;
+	boost::asio::streambuf request_;
+	boost::asio::streambuf response_;
+	bool is_setup;
 };
 
 void doSplitPhrasesTimer(int action);

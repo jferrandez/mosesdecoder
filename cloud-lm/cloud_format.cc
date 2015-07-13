@@ -13,15 +13,15 @@
 #include <cctype>
 #include <iomanip>
 #include <sstream>
-#include <boost/asio.hpp>
+#include <boost/bind.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/foreach.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 //#include <boost/regex.hpp>
 
-using boost::asio::ip::tcp;
 using namespace std;
 
 namespace cloudlm {
@@ -29,6 +29,8 @@ namespace ngram {
 
 Timer cacheTime;
 Timer networkTime;
+Timer networkTimeOpenSocket;
+Timer networkTimeSolr;
 Timer prepareRequestsTime;
 Timer splitPhrasesTimer;
 double solrTime = 0; // In ms
@@ -72,6 +74,234 @@ uint64_t mMaxEntries = 100000000;
 uint64_t mEntries = 0;
 ///////// END CACHE //////////
 
+///////// SOCKET //////////
+ClientSocket::ClientSocket():
+		io_service_(), socket_(io_service_), is_setup(false) {}
+
+
+void ClientSocket::OpenConnection(std::string ip, std::string port) {
+	boost::asio::ip::tcp::resolver resolver(io_service_);
+	boost::asio::ip::tcp::resolver::query query(ip,port);
+	iterator_ = resolver.resolve(query);
+	//boost::asio::ip::tcp::endpoint endpoint = *iterator;
+	//socket_.async_connect(endpoint, boost::bind(&ClientSocket::HandlerConnect, this, boost::asio::placeholders::error, iterator));
+	//io_service_.run();
+
+	is_setup = true;
+}
+
+//void ClientSocket::HandlerConnect(const boost::system::error_code &error, boost::asio::ip::tcp::resolver::iterator endpoint_iterator) {
+//	if(error)
+//	{
+//		boost::system::error_code error = boost::asio::error::host_not_found;
+//		throw boost::system::system_error(error);
+//	}
+//	else
+//	{
+//		cout << "HOLA2" << endl;
+//		boost::asio::socket_base::keep_alive keep_option(true);
+//		socket_.set_option(keep_option);
+//	}
+//}
+
+//void ClientSocket::HandleWriteRequest(const boost::system::error_code& err) {
+//	if (!err)
+//	{
+//		cout << "HOLA3.1" << endl;
+//	  // Read the response status line. The response_ streambuf will
+//	  // automatically grow to accommodate the entire line. The growth may be
+//	  // limited by passing a maximum size to the streambuf constructor.
+//	  boost::asio::async_read_until(socket_, response_, "\r\n",
+//		  boost::bind(&ClientSocket::HandleReadStatusLine, this,
+//			boost::asio::placeholders::error));
+//	}
+//	else
+//	{
+//	  std::cout << "Error: " << err.message() << "\n";
+//	}
+//}
+//
+//void ClientSocket::HandleReadStatusLine(const boost::system::error_code& err) {
+//    if (!err)
+//    {
+//		cout << "HOLA3.2" << endl;
+//      // Check that response is OK.
+//      std::istream response_stream(&response_);
+//      std::string http_version;
+//      response_stream >> http_version;
+//      unsigned int status_code;
+//      response_stream >> status_code;
+//      std::string status_message;
+//      std::getline(response_stream, status_message);
+//      if (!response_stream || http_version.substr(0, 5) != "HTTP/")
+//      {
+//        std::cout << "Invalid response\n";
+//        return;
+//      }
+//      if (status_code != 200)
+//      {
+//        std::cout << "Response returned with status code ";
+//        std::cout << status_code << "\n";
+//        return;
+//      }
+//
+//      // Read the response headers, which are terminated by a blank line.
+//      boost::asio::async_read_until(socket_, response_, "\r\n\r\n",
+//          boost::bind(&ClientSocket::HandleReadHeaders, this,
+//            boost::asio::placeholders::error));
+//    }
+//    else
+//    {
+//      std::cout << "Error: " << err << "\n";
+//    }
+//}
+//
+//void ClientSocket::HandleReadHeaders(const boost::system::error_code& err) {
+//    if (!err)
+//    {
+//		cout << "HOLA3.3" << endl;
+//      // Process the response headers.
+//      std::istream response_stream(&response_);
+//      std::string header;
+//      while (std::getline(response_stream, header) && header != "\r")
+//        std::cout << header << "\n";
+//      std::cout << "\n";
+//
+//      // Write whatever content we already have to output.
+//      if (response_.size() > 0)
+//        std::cout << &response_;
+//
+//      // Start reading remaining data until EOF.
+//      boost::asio::async_read(socket_, response_,
+//          boost::asio::transfer_at_least(1),
+//          boost::bind(&ClientSocket::HandleReadContent, this,
+//            boost::asio::placeholders::error));
+//    }
+//    else
+//    {
+//      std::cout << "Error: " << err << "\n";
+//    }
+//}
+//
+//void ClientSocket::HandleReadContent(const boost::system::error_code& err) {
+//    if (!err)
+//    {
+//		cout << "HOLA3.4" << endl;
+//      // Write all of the data that has been read so far.
+//      //std::cout << &response_;
+//      solr_response << &response_;
+//
+//      // Continue reading remaining data until EOF.
+//      boost::asio::async_read(socket_, response_,
+//          boost::asio::transfer_at_least(1),
+//          boost::bind(&ClientSocket::HandleReadContent, this,
+//            boost::asio::placeholders::error));
+//    }
+//    else if (err != boost::asio::error::eof)
+//    {
+//      std::cout << "Error: " << err << "\n";
+//    }
+//}
+
+void ClientSocket::SendRequest(string message, string url, stringstream &solr_response) {
+	try {
+		cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
+
+		networkTimeOpenSocket.start();
+
+		tcp::resolver::iterator end;
+		tcp::resolver::iterator iterator = iterator_;
+
+		// Try each endpoint until we successfully establish a connection.
+		boost::system::error_code error = boost::asio::error::host_not_found;
+		while (error && iterator != end)
+		{
+		  socket_.close();
+		  socket_.connect(*iterator++, error);
+		  boost::asio::socket_base::keep_alive keep_option(true);
+		  socket_.set_option(keep_option);
+		}
+		if (error) {
+		  networkTimeOpenSocket.stop();
+		  throw boost::system::system_error(error);
+		}
+		networkTimeOpenSocket.stop();
+
+		networkTimeSolr.start();
+		// Form the request. We specify the "Connection: close" header so that the
+		// server will close the socket after transmitting the response. This will
+		// allow us to treat all data up until the EOF as the content.
+		boost::asio::streambuf request;
+		ostream request_stream(&request);
+		//request_stream << "GET " << "/solr/collection1/select?q=gram:\"" << UriEncode(req.gram) << "\"&fq=order:" << req.order << "&wt=json" << " HTTP/1.0\r\n";
+		request_stream << "GET " << "/solr/collection1/select?wt=json&fl=gram,prob,backoff&" << message << " HTTP/1.1\r\n";
+		request_stream << "Host: " << config->request.url << "\r\n";
+		request_stream << "Accept: */*;charset=UTF-8\r\nAccept-Charset: UTF-8\r\nConnection: close\r\n\r\n";
+
+		// Send the request.
+		boost::asio::write(socket_, request);
+
+		// Read the response status line. The response streambuf will automatically
+		// grow to accommodate the entire line. The growth may be limited by passing
+		// a maximum size to the streambuf constructor.
+		boost::asio::streambuf response;
+		//boost::asio::read_until(socket, response, "\r\n");
+		// Read until EOF, writing data to output as we go.
+		while (boost::asio::read(socket_, response,
+			  boost::asio::transfer_at_least(1), error)) {}
+		  //cout << &response;
+		if (error != boost::asio::error::eof) {
+		  networkTime.stop();
+		  throw boost::system::system_error(error);
+		}
+		networkTimeSolr.stop();
+		networkTime.stop();
+
+		// Check that response is OK.
+		istream response_stream(&response);
+		string http_version;
+		response_stream >> http_version;
+		unsigned int status_code;
+		response_stream >> status_code;
+		string status_message;
+		getline(response_stream, status_message);
+		if (!response_stream || http_version.substr(0, 5) != "HTTP/")
+		{
+		  // TODO: change the failed requests
+		  //throw boost::system::system_error(boost::asio::error::no_data);
+		  cerr << "Invalid response for the search: " << message << endl;
+		  return;
+		}
+		if (status_code != 200)
+		{
+		  // TODO: change the failed requests
+		  //throw boost::system::system_error(boost::asio::error::connection_aborted);
+		  cerr << "Response returned with status code " << status_code << " when searched: " << message << endl;
+		  return;
+		}
+
+		// Read the response headers, which are terminated by a blank line.
+		//boost::asio::read_until(socket, response, "\r\n\r\n");
+
+		// Process the response headers.
+		string header;
+		while (getline(response_stream, header) && header != "\r") {}
+
+		string body_response;
+		while (getline(response_stream, body_response)) {
+			solr_response << body_response;
+		}
+	}
+	catch (exception& e)
+	{
+		UTIL_THROW(SolrException, "Solr request - we can't connect with Solr. Reason:\n" << e.what());
+		return;
+	}
+}
+///////// END SOCKET //////////
+
+ClientSocket clientSocket;
+
 /**
  * Action = 0 -> start / Action = 1 -> stop
  */
@@ -94,7 +324,6 @@ void UpdateRequestStats(const string gram, const int order) {
 }
 
 void ShowStats() {
-    cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
 	cerr << endl << endl << "START STATS" << endl;
 	/*cerr << "--NGRAMS--" << endl;
 
@@ -110,6 +339,7 @@ void ShowStats() {
 	cerr << endl << endl << "--TIME--" << endl;
 	cerr << "cacheTime" << "\t" << cacheTime.get_elapsed_time() << endl;
 	cerr << "networkTime" << "\t" << networkTime.get_elapsed_time() << endl;
+	cerr << "networkTimeSolr" << "\t" << networkTimeSolr.get_elapsed_time() << endl;
 	cerr << "prepareRequestsTime" << "\t" << prepareRequestsTime.get_elapsed_time() << endl;
 	cerr << "splitPhrasesTimer" << "\t" << splitPhrasesTimer.get_elapsed_time() << endl;
 	cerr << "solrTime" << "\t" << solrTime << endl;
@@ -120,6 +350,8 @@ void ShowStats() {
 	cerr << "cacheGet" << "\t" << cacheGet << endl;
 	cerr << "cacheFound" << "\t" << cacheFound << endl;
 	cerr << "cacheNotFound" << "\t" << cacheNotFound << endl;
+	cerr << "mMaxEntries" << "\t" << mMaxEntries << endl;
+	cerr << "mEntries" << "\t" << mEntries << endl;
 
 	cerr << endl << endl << "FINISH STATS" << endl;
 }
@@ -175,7 +407,31 @@ string UriEncode(const string & sSrc)
 	return escaped.str();
 }
 
- void SendRequestSolr(string search, stringstream &solr_response) {
+void SendRequestSolr(string search, stringstream &solr_response) {
+  prepareRequestsTime.start();
+  solrRequests++;
+  try
+  {
+	  cloudlm::ngram::Config *config = cloudlm::ngram::Config::Instance();
+	  networkTime.start();
+	  if (!clientSocket.is_setup) {
+		  clientSocket.OpenConnection(config->request.base_url, config->request.port);
+	  }
+	  networkTimeSolr.start();
+	  clientSocket.SendRequest(search, config->request.url, solr_response);
+	  networkTimeSolr.stop();
+	  networkTime.stop();
+  }
+  catch (exception& e)
+  {
+	UTIL_THROW(SolrException, "Solr request - we can't connect with Solr. Reason:\n" << e.what());
+	prepareRequestsTime.stop();
+	return;
+  }
+  prepareRequestsTime.stop();
+}
+
+ void SendRequestSolr2(string search, stringstream &solr_response) {
   prepareRequestsTime.start();
   solrRequests++;
 
@@ -206,6 +462,7 @@ string UriEncode(const string & sSrc)
 	  throw boost::system::system_error(error);
 	}
 
+	networkTimeSolr.start();
 	// Form the request. We specify the "Connection: close" header so that the
 	// server will close the socket after transmitting the response. This will
 	// allow us to treat all data up until the EOF as the content.
@@ -232,7 +489,7 @@ string UriEncode(const string & sSrc)
 	  networkTime.stop();
 	  throw boost::system::system_error(error);
 	}
-
+	networkTimeSolr.stop();
 	networkTime.stop();
 
 	// Check that response is OK.
