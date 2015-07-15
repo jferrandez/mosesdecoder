@@ -1,5 +1,9 @@
 #!/usr/bin/env perl
+#
+# This file is part of moses.  Its use is licensed under the GNU Lesser General
+# Public License version 2.1 or, at your option, any later version.
 
+use warnings;
 use strict;
 use Cwd;
 use FindBin qw($RealBin);
@@ -8,7 +12,7 @@ use File::Basename;
 
 
 my $continue = 0;
-my $args = ""; 
+my $args = "";
 my $config;
 
 GetOptions("continue=i"  => \$continue,
@@ -37,7 +41,7 @@ print $runFile "export PATH=\"$path\"\n\n";
 print $runFile "export PERL5LIB=\"/share/apps/NYUAD/perl/gcc_4.9.1/5.20.1:/home/$user/perl5/lib/perl5\"\n\n";
 
 print $runFile "module load  NYUAD/2.0 \n";
-print $runFile "module load gcc/4.9.1 python/2.7.9 openmpi/1.8.3 boost cmake zlib jdk perl expat\n\n";
+print $runFile "module load gcc python/2.7.9 boost cmake zlib jdk perl expat \n\n";
 
 my $emsDir = dirname($RealBin);
 

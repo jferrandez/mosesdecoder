@@ -64,30 +64,45 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "IOWrapper.h"
 
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/iostreams/device/file.hpp>
+#include <boost/iostreams/filter/bzip2.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+
 using namespace std;
 
 namespace Moses
 {
 
 IOWrapper::IOWrapper()
-  :m_nBestStream(NULL)
-
-  ,m_outputWordGraphStream(NULL)
-  ,m_outputSearchGraphStream(NULL)
-  ,m_detailedTranslationReportingStream(NULL)
-  ,m_unknownsStream(NULL)
-  ,m_alignmentInfoStream(NULL)
-  ,m_latticeSamplesStream(NULL)
-
-  ,m_surpressSingleBestOutput(false)
-
-  ,spe_src(NULL)
-  ,spe_trg(NULL)
-  ,spe_aln(NULL)
+  : m_nBestStream(NULL)
+  , m_outputWordGraphStream(NULL)
+  , m_outputSearchGraphStream(NULL)
+  , m_detailedTranslationReportingStream(NULL)
+  , m_unknownsStream(NULL)
+  , m_alignmentInfoStream(NULL)
+  , m_latticeSamplesStream(NULL)
+  , m_surpressSingleBestOutput(false)
+  , m_look_ahead(0)
+  , m_look_back(0)
+  , m_buffered_ahead(0)
+  , spe_src(NULL)
+  , spe_trg(NULL)
+  , spe_aln(NULL)
 {
   const StaticData &staticData = StaticData::Instance();
 
-  m_inputType = staticData.GetInputType(); 
+  // context buffering for context-sensitive decoding
+  m_look_ahead = staticData.GetContextParameters().look_ahead;
+  m_look_back  = staticData.GetContextParameters().look_back;
+
+  m_inputType = staticData.GetInputType();
+
+  UTIL_THROW_IF2((m_look_ahead || m_look_back) && m_inputType != SentenceInput,
+                 "Context-sensitive decoding currently works only with sentence input.");
+
   m_currentLine = staticData.GetStartTranslationId();
 
   m_inputFactorOrder = &staticData.GetInputFactorOrder();
@@ -202,6 +217,24 @@ IOWrapper::IOWrapper()
     m_singleBestOutputCollector.reset(new Moses::OutputCollector(&std::cout));
   }
 
+  // setup file pattern for hypergraph output
+  char const* key = "output-search-graph-hypergraph";
+  PARAM_VEC const* p = staticData.GetParameter().GetParam(key);
+  std::string& fmt = m_hypergraph_output_filepattern;
+  // first, determine the output directory
+  if (p && p->size() > 2) fmt = p->at(2);
+  else if (nBestFilePath.size() && nBestFilePath != "-" &&
+           ! boost::starts_with(nBestFilePath, "/dev/stdout")) {
+    fmt = boost::filesystem::path(nBestFilePath).parent_path().string();
+    if (fmt.empty()) fmt = ".";
+  } else fmt = boost::filesystem::current_path().string() + "/hypergraph";
+  if (*fmt.rbegin() != '/') fmt += "/";
+  std::string extension = (p && p->size() > 1 ? p->at(1) : std::string("txt"));
+  UTIL_THROW_IF2(extension != "txt" && extension != "gz" && extension != "bz2",
+                 "Unknown compression type '" << extension
+                 << "' for hypergraph output!");
+  fmt += string("%d.") + extension;
+
   if (staticData.GetParameter().GetParam("spe-src")) {
     spe_src = new ifstream(staticData.GetParameter().GetParam("spe-src")->at(0).c_str());
     spe_trg = new ifstream(staticData.GetParameter().GetParam("spe-trg")->at(0).c_str());
@@ -239,40 +272,92 @@ IOWrapper::~IOWrapper()
 // }
 
 boost::shared_ptr<InputType>
-IOWrapper::ReadInput()
+IOWrapper::
+GetBufferedInput()
 {
-  boost::shared_ptr<InputType> source;
   switch(m_inputType) {
   case SentenceInput:
-    source.reset(new Sentence);
-    break;
+    return BufferInput<Sentence>();
   case ConfusionNetworkInput:
-    source.reset(new ConfusionNet);
-    break;
+    return BufferInput<ConfusionNet>();
   case WordLatticeInput:
-    source.reset(new WordLattice);
-    break;
+    return BufferInput<WordLattice>();
   case TreeInputType:
-    source.reset(new TreeInput);
-    break;
+    return BufferInput<TreeInput>();
   case TabbedSentenceInput:
-    source.reset(new TabbedSentence);
-    break;
+    return BufferInput<TabbedSentence>();
   case ForestInputType:
-    source.reset(new ForestInput);
-    break;
+    return BufferInput<ForestInput>();
   default:
     TRACE_ERR("Unknown input type: " << m_inputType << "\n");
+    return boost::shared_ptr<InputType>();
   }
+
+}
+
+boost::shared_ptr<InputType>
+IOWrapper::
+ReadInput()
+{
 #ifdef WITH_THREADS
   boost::lock_guard<boost::mutex> lock(m_lock);
 #endif
-  if (source->Read(*m_inputStream, *m_inputFactorOrder))
+  boost::shared_ptr<InputType> source = GetBufferedInput();
+  if (source) {
     source->SetTranslationId(m_currentLine++);
-  else 
-    source.reset();
+    if (m_look_ahead || m_look_back)
+      this->set_context_for(*source);
+  }
+  m_past_input.push_back(source);
   return source;
 }
+
+void
+IOWrapper::
+set_context_for(InputType& source)
+{
+  boost::shared_ptr<string> context(new string);
+  list<boost::shared_ptr<InputType> >::iterator m = m_past_input.end();
+  // remove obsolete past input from buffer:
+  if (m_past_input.end() != m_past_input.begin()) {
+    for (size_t cnt = 0; cnt < m_look_back && --m != m_past_input.begin();
+         cnt += (*m)->GetSize());
+    while (m_past_input.begin() != m) m_past_input.pop_front();
+  }
+  // cerr << string(80,'=') << endl;
+  if (m_past_input.size()) {
+    m = m_past_input.begin();
+    *context += (*m)->ToString();
+    // cerr << (*m)->ToString() << endl;
+    for (++m; m != m_past_input.end(); ++m) {
+      // cerr << "\n" << (*m)->ToString() << endl;
+      *context += string(" ") + (*m)->ToString();
+    }
+    // cerr << string(80,'-') << endl;
+  }
+  // cerr << source.ToString() << endl;
+  if (m_future_input.size()) {
+    // cerr << string(80,'-') << endl;
+    for (m = m_future_input.begin(); m != m_future_input.end(); ++m) {
+      // if (m != m_future_input.begin()) cerr << "\n";
+      // cerr << (*m)->ToString() << endl;
+      if (context->size()) *context += " ";
+      *context += (*m)->ToString();
+    }
+  }
+  // cerr << string(80,'=') << endl;
+  if (context->size()) source.SetContext(context);
+}
+
+
+
+std::string
+IOWrapper::
+GetHypergraphOutputFileName(size_t const id) const
+{
+  return str(boost::format(m_hypergraph_output_filepattern) % id);
+}
+
 
 } // namespace
 

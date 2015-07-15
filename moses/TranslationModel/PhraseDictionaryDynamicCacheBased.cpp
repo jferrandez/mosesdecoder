@@ -36,7 +36,7 @@ PhraseDictionaryDynamicCacheBased *PhraseDictionaryDynamicCacheBased::s_instance
 
 //! contructor
 PhraseDictionaryDynamicCacheBased::PhraseDictionaryDynamicCacheBased(const std::string &line)
-  : PhraseDictionary(line)
+  : PhraseDictionary(line, true)
 {
   std::cerr << "Initializing PhraseDictionaryDynamicCacheBased feature..." << std::endl;
 
@@ -145,7 +145,7 @@ void PhraseDictionaryDynamicCacheBased::SetParameter(const std::string& key, con
   }
 }
 
-void PhraseDictionaryDynamicCacheBased::InitializeForInput(InputType const& source)
+void PhraseDictionaryDynamicCacheBased::InitializeForInput(ttasksptr const& ttask)
 {
   ReduceCache();
 }

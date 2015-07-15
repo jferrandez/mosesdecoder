@@ -22,7 +22,7 @@ public:
     return m_statefulFFs;
   }
 
-  StatefulFeatureFunction(const std::string &line);
+  StatefulFeatureFunction(const std::string &line, bool registerNow);
   StatefulFeatureFunction(size_t numScoreComponents, const std::string &line);
 
   /**
@@ -36,6 +36,14 @@ public:
     const Hypothesis& cur_hypo,
     const FFState* prev_state,
     ScoreComponentCollection* accumulator) const = 0;
+
+  virtual FFState* EvaluateWhenAppliedWithContext(
+    ttasksptr const& ttasks,
+    const Hypothesis& cur_hypo,
+    const FFState* prev_state,
+    ScoreComponentCollection* accumulator) const {
+    return EvaluateWhenApplied(cur_hypo, prev_state, accumulator);
+  }
 
   virtual FFState* EvaluateWhenApplied(
     const ChartHypothesis& /* cur_hypo */,

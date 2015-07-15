@@ -44,8 +44,8 @@ public:
   EmptyHypothesisState(const InputType &input) const;
 
   void
-  InitializeForInput(const InputType& i) {
-    m_table->InitializeForInput(i);
+  InitializeForInput(ttasksptr const& ttask) {
+    if (m_table) m_table->InitializeForInput(ttask);
   }
 
   Scores
@@ -118,6 +118,8 @@ private:
   std::string m_filePath;
   bool m_haveDefaultScores;
   Scores m_defaultScores;
+public:
+  LRModel const& GetModel() const;
 };
 
 }

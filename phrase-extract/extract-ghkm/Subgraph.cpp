@@ -18,10 +18,13 @@
 ***********************************************************************/
 
 #include <iostream>
-#include "Subgraph.h"
-#include "Node.h"
 
-namespace Moses
+#include "Node.h"
+#include "Subgraph.h"
+
+namespace MosesTraining
+{
+namespace Syntax
 {
 namespace GHKM
 {
@@ -193,5 +196,6 @@ void Subgraph::RecursivelyGetPartsOfSpeech(const Node *n, std::vector<std::strin
   }
 }
 
-}  // namespace Moses
+}  // namespace MosesTraining
+}  // namespace Syntax
 }  // namespace GHKM

@@ -25,6 +25,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <string>
 #include <stdint.h>
 
+#include <boost/shared_ptr.hpp>
+#include <boost/weak_ptr.hpp>
+
 //! all the typedefs and enums goes here
 
 
@@ -86,18 +89,18 @@ enum FactorDirection {
 };
 
 enum DecodeType {
-  Translate
-  ,Generate
+  Translate,
+  Generate
 };
 
 namespace LexReorderType
 {
 enum LexReorderType { // explain values
-  Backward
-  ,Forward
-  ,Bidirectional
-  ,Fe
-  ,F
+  Backward,
+  Forward,
+  Bidirectional,
+  Fe,
+  F
 };
 }
 
@@ -110,13 +113,13 @@ enum DistortionOrientationOptions {
 }
 
 enum InputTypeEnum {
-  SentenceInput						= 0
-  ,ConfusionNetworkInput	= 1
-  ,WordLatticeInput				= 2
-  ,TreeInputType					= 3
-  //,WordLatticeInput2			= 4
-  , TabbedSentenceInput = 5
-  ,ForestInputType        = 6
+  SentenceInput						= 0,
+  ConfusionNetworkInput	= 1,
+  WordLatticeInput				= 2,
+  TreeInputType					= 3,
+  //,WordLatticeInput2			= 4,
+  TabbedSentenceInput = 5,
+  ForestInputType        = 6
 };
 
 enum XmlInputType {
@@ -128,40 +131,41 @@ enum XmlInputType {
 };
 
 enum DictionaryFind {
-  Best		= 0
-  ,All		= 1
+  Best		= 0,
+  All		= 1
 };
 
 // Note: StaticData uses SearchAlgorithm to determine whether the translation
 // model is phrase-based or syntax-based.  If you add a syntax-based search
 // algorithm here then you should also update StaticData::IsSyntax().
 enum SearchAlgorithm {
-  Normal				= 0
-  ,CubePruning	= 1
-  //,CubeGrowing	= 2
-  ,CYKPlus = 3
-  ,NormalBatch  = 4
-  ,ChartIncremental = 5
-  ,SyntaxS2T = 6
-  ,SyntaxT2S = 7
-  ,SyntaxT2S_SCFG = 8
-  ,SyntaxF2S = 9
+  Normal = 0,
+  CubePruning	= 1,
+  //,CubeGrowing = 2
+  CYKPlus = 3,
+  NormalBatch  = 4,
+  ChartIncremental = 5,
+  SyntaxS2T = 6,
+  SyntaxT2S = 7,
+  SyntaxT2S_SCFG = 8,
+  SyntaxF2S = 9,
+  DefaultSearchAlgorithm = 777 // means: use StaticData.m_searchAlgorithm
 };
 
 enum SourceLabelOverlap {
-  SourceLabelOverlapAdd = 0
-  ,SourceLabelOverlapReplace = 1
-  ,SourceLabelOverlapDiscard = 2
+  SourceLabelOverlapAdd = 0,
+  SourceLabelOverlapReplace = 1,
+  SourceLabelOverlapDiscard = 2
 };
 
 enum WordAlignmentSort {
-  NoSort = 0
-  ,TargetOrder = 1
+  NoSort = 0,
+  TargetOrder = 1
 };
 
 enum FormatType {
-  MosesFormat
-  ,HieroFormat
+  MosesFormat,
+  HieroFormat
 };
 
 enum S2TParsingAlgorithm {
@@ -179,5 +183,8 @@ typedef std::vector<FactorType> FactorList;
 
 typedef std::pair<std::vector<std::string const*>,WordAlignments > StringWordAlignmentCand;
 
+class TranslationTask;
+typedef boost::shared_ptr<TranslationTask> ttasksptr;
+typedef boost::weak_ptr<TranslationTask> ttaskwptr;
 }
 

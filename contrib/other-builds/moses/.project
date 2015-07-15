@@ -221,6 +221,16 @@
 			<locationURI>PARENT-3-PROJECT_LOC/moses/ConfusionNet.h</locationURI>
 		</link>
 		<link>
+			<name>ContextParameters.cpp</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/parameters/ContextParameters.cpp</locationURI>
+		</link>
+		<link>
+			<name>ContextParameters.h</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/moses/parameters/ContextParameters.h</locationURI>
+		</link>
+		<link>
 			<name>DecodeGraph.cpp</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/moses/DecodeGraph.cpp</locationURI>
@@ -1139,16 +1149,6 @@
 			<name>FF/DynamicCacheBasedLanguageModel.h</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/DynamicCacheBasedLanguageModel.h</locationURI>
-		</link>
-		<link>
-			<name>FF/ExternalFeature.cpp</name>
-			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/ExternalFeature.cpp</locationURI>
-		</link>
-		<link>
-			<name>FF/ExternalFeature.h</name>
-			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/moses/FF/ExternalFeature.h</locationURI>
 		</link>
 		<link>
 			<name>FF/FFState.cpp</name>

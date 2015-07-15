@@ -342,7 +342,7 @@ Expand(const TranslationOption& topt, const InputType& input,
     LRModel const& lrmodel = m_configuration;
     WordsRange const cur = topt.GetSourceWordsRange();
     LRModel::ReorderingType reoType = (m_first ? lrmodel.GetOrientation(cur)
-				       : lrmodel.GetOrientation(m_prevRange,cur));
+                                       : lrmodel.GetOrientation(m_prevRange,cur));
     CopyScores(scores, topt, input, reoType);
   }
   return new PhraseBasedReorderingState(this, topt);

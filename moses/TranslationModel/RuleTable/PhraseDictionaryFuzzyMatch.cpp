@@ -43,8 +43,10 @@
 #include "moses/TranslationModel/CYKPlusParser/ChartRuleLookupManagerMemoryPerSentence.h"
 #include "moses/TranslationModel/fuzzy-match/FuzzyMatchWrapper.h"
 #include "moses/TranslationModel/fuzzy-match/SentenceAlignment.h"
+#include "moses/TranslationTask.h"
 #include "util/file.hh"
 #include "util/exception.hh"
+#include "util/random.hh"
 
 using namespace std;
 
@@ -62,8 +64,8 @@ char *mkdtemp(char *tempbuf)
     return NULL;
   }
 
-  srand((unsigned)time(0));
-  rand_value = (int)((rand() / ((double)RAND_MAX+1.0)) * 1e6);
+  util::rand_init();
+  rand_value = util::rand_excl(1e6);
   tempbase = strrchr(tempbuf, '/');
   tempbase = tempbase ? tempbase+1 : tempbuf;
   strcpy(tempbasebuf, tempbase);
@@ -79,7 +81,7 @@ namespace Moses
 {
 
 PhraseDictionaryFuzzyMatch::PhraseDictionaryFuzzyMatch(const std::string &line)
-  :PhraseDictionary(line)
+  :PhraseDictionary(line, true)
   ,m_config(3)
   ,m_FuzzyMatchWrapper(NULL)
 {
@@ -171,8 +173,9 @@ int removedirectoryrecursively(const char *dirname)
   return 1;
 }
 
-void PhraseDictionaryFuzzyMatch::InitializeForInput(InputType const& inputSentence)
+void PhraseDictionaryFuzzyMatch::InitializeForInput(ttasksptr const& ttask)
 {
+  InputType const& inputSentence = *ttask->GetSource();
 #if defined __MINGW32__
   char dirName[] = "moses.XXXXXX";
 #else
