@@ -98,7 +98,7 @@ void ClientSocket::OpenConnection(std::string ip, std::string port) {
 //	}
 //	else
 //	{
-//		cout << "HOLA2" << endl;
+//		cout << "TEST2" << endl;
 //		boost::asio::socket_base::keep_alive keep_option(true);
 //		socket_.set_option(keep_option);
 //	}
@@ -107,7 +107,7 @@ void ClientSocket::OpenConnection(std::string ip, std::string port) {
 //void ClientSocket::HandleWriteRequest(const boost::system::error_code& err) {
 //	if (!err)
 //	{
-//		cout << "HOLA3.1" << endl;
+//		cout << "TEST3.1" << endl;
 //	  // Read the response status line. The response_ streambuf will
 //	  // automatically grow to accommodate the entire line. The growth may be
 //	  // limited by passing a maximum size to the streambuf constructor.
@@ -124,7 +124,7 @@ void ClientSocket::OpenConnection(std::string ip, std::string port) {
 //void ClientSocket::HandleReadStatusLine(const boost::system::error_code& err) {
 //    if (!err)
 //    {
-//		cout << "HOLA3.2" << endl;
+//		cout << "TEST3.2" << endl;
 //      // Check that response is OK.
 //      std::istream response_stream(&response_);
 //      std::string http_version;
@@ -159,7 +159,7 @@ void ClientSocket::OpenConnection(std::string ip, std::string port) {
 //void ClientSocket::HandleReadHeaders(const boost::system::error_code& err) {
 //    if (!err)
 //    {
-//		cout << "HOLA3.3" << endl;
+//		cout << "TEST3.3" << endl;
 //      // Process the response headers.
 //      std::istream response_stream(&response_);
 //      std::string header;
@@ -186,7 +186,7 @@ void ClientSocket::OpenConnection(std::string ip, std::string port) {
 //void ClientSocket::HandleReadContent(const boost::system::error_code& err) {
 //    if (!err)
 //    {
-//		cout << "HOLA3.4" << endl;
+//		cout << "TEST3.4" << endl;
 //      // Write all of the data that has been read so far.
 //      //std::cout << &response_;
 //      solr_response << &response_;
@@ -547,7 +547,7 @@ bool SendRequest(Data &req, ProbBackoff &gram) {
 	stringstream response;
 	SendRequestSolr(query.str(), response);
 	bool gram_found = ReadJson(response, gram);
-	// TODO: Quitar cuando se arregle en Solr
+	// TODO: We can apply this step on Solr side. Remove the condition when we change on Solr
 	if (!gram_found && gram.backoff == ngram::kExtensionBackoff) gram.backoff = ngram::kNoExtensionBackoff;
 	AddToCache(req.gram, gram);
 	if (!gram_found) return false;
@@ -589,7 +589,7 @@ void SendRequest(vector<string> words) {
 
 }
 
-// TODO: quitar esta? Es para hacer todas las queries de una vez.
+// TODO: Deprecated function
 bool SendRequest2(Data &req, vector<string> words) {
 	int expected_results = 0;
 	stringstream search;

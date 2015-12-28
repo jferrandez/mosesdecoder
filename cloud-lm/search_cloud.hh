@@ -69,7 +69,7 @@ template <class Value> class CloudSearch {
       }*/
       cloudlm::ngram::UpdateRequestStats(1);
 
-      // TODO leer de config
+      // TODO Move the params to Config
       Config *config = Config::Instance();
       Data request;
       request.gram = s_unigram;
@@ -82,7 +82,7 @@ template <class Value> class CloudSearch {
 		unigram.backoff = kNoExtensionBackoff;
 		unk = true;
 	  }
-      // TODO : test -> arreglar si funciona (esto funciona, lo podemos dejar aquí de momento) 07/04/2015
+      // TODO : test -> We can apply this step on Solr side. Remove the condition when we change on Solr 07/04/2015
       if (s_unigram != "<s>" && s_unigram != "<unk>" && !unk) {
           util::UnsetSign(unigram.prob);
       }
@@ -109,7 +109,7 @@ template <class Value> class CloudSearch {
 	  }
 	  MiddlePointer ret(ngram_weights);
 
-      // TODO : test -> arreglar si funciona (esto funciona, lo podemos dejar aquí de momento) - habría que moverlo al preproceso 07/04/2015
+      // TODO : test -> We can apply this step on Solr side. Remove the condition when we change on Solr 07/04/2015
       if (boost::starts_with(s_ngram,"<s>")) {
           util::UnsetSign(ngram_weights.prob);
       }
@@ -153,7 +153,7 @@ template <class Value> class CloudSearch {
       extend_pointer = node;
       MiddlePointer ret(ngram_weights);
 
-      // TODO : test -> arreglar si funciona (esto funciona, lo podemos dejar aquí de momento) - habría que moverlo al preproceso 07/04/2015
+      // TODO : test -> We can apply this step on Solr side. Remove the condition when we change on Solr 07/04/2015
       if (!boost::starts_with(s_ngram,"<s>")) {
           util::UnsetSign(ngram_weights.prob);
       }
